@@ -2,13 +2,11 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "driver_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
-#include "ck_conv_fig.h"
 
 template <typename TInWei,
           typename TAcc,
           typename TBias,
           typename TOut,
-          ck::ActivTypeEnum_t activ_type,
           typename InLengths,
           typename WeiLengths,
           typename OutLengths,
@@ -65,34 +63,35 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
 
-#if USE_CONV_FIG
-    constexpr index_t BlockSize = CONV_BLOCK_SIZE;
-
-    constexpr index_t E1 = CONV_E1;
-    constexpr index_t E2 = CONV_E2;
-    constexpr index_t K2 = CONV_K2;
-
-    constexpr index_t E0PerBlock = CONV_E0_PER_BLOCK;
-    constexpr index_t KPerBlock  = CONV_K_PER_BLOCK;
-    constexpr index_t HoPerBlock = CONV_HO_PER_BLOCK;
-    constexpr index_t WoPerBlock = CONV_WO_PER_BLOCK;
-    constexpr index_t E1PerBlock = CONV_E1_PER_BLOCK;
-
-    constexpr index_t KPerThread  = CONV_K_PER_THREAD;
-    constexpr index_t HoPerThread = CONV_HO_PER_THREAD;
-    constexpr index_t WoPerThread = CONV_WO_PER_THREAD;
-    constexpr index_t EPerThread  = CONV_E_PER_THREAD;
-
-    using ABlockTransferBlockSliceLengths_E0_E1_K0_K1_E2 =
-        Sequence<CONV_ABLOCK_TRANS_THREAD_SLICE_LENGTHS>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
-        Sequence<CONV_ABLOCK_TRANS_THREAD_CLUSTER_LENGTHS>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
-    constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
-    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
-#endif
+    GridGemmTuningParameters<256,        // BlockSize
+                             C0 * Y * X, // E1
+                             C1,         // E2
+                             2,          // K2
+                             1,          // E0PerBlock
+                             K,          // KPerBlock
+                             16,         // HoPerBlock
+                             64,         // WoPerBlock
+                             2,          // E1PerBlock
+                             K,          // KPerThread
+                             2,          // HoPerThread
+                             2,          // WoPerThread
+                             1,          // EPerThread
+                             Sequence<1,
+                                      C0 * Y * X,
+                                      1,
+                                      K,
+                                      C1>, // ABlockTransferBlockSliceLengths_E0_E1_K0_K1_E2
+                             Sequence<1,
+                                      C0,
+                                      1,
+                                      K,
+                                      1>, // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
+                             C1,          // ABlockTransferSrcScalarPerVector_E2
+                             C1,          // ABlockTransferDstScalarPerVector_E2
+                             C1,          // BThreadTransferSrcScalarPerVector_E2
+                             K1           // CThreadTransferDstScalarPerVector_K
+                             >
+        conv_tuning_parameters{};
 
     const auto in_n_c0_hi_wi_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
@@ -103,52 +102,24 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
 
     constexpr auto conv_driver =
         DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1<
-            BlockSize,
             TInWei,
             TAcc,
             TBias,
             TOut,
-            E1,
-            E2,
-            K2,
-            KPerBlock,
-            HoPerBlock,
-            WoPerBlock,
-            E0PerBlock,
-            E1PerBlock,
-            KPerThread,
-            HoPerThread,
-            WoPerThread,
-            EPerThread,
-            ABlockTransferBlockSliceLengths_E0_E1_K0_K1_E2,
-            ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2,
-            ABlockTransferSrcScalarPerVector_E2,
-            ABlockTransferDstScalarPerVector_E2,
-            BThreadTransferSrcScalarPerVector_E2,
-            CThreadTransferDstScalarPerVector_K,
-            I1,
-            activ_type>{};
+            decltype(conv_tuning_parameters)>{};
 
-    std::cerr << "input_"
-              << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
-              << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_out_n" << N << "k" << K0 << "h"
-              << Ho << "w" << Wo << "k" << K1 << std::endl;
-    std::cerr << "BlockSize_" << BlockSize << "_E1_" << E1 << "_E2_" << E2 << "_K2_" << K2
-              << "_KPerBlock_" << KPerBlock << "_HoPerBlock_" << HoPerBlock << "_WoPerBlock_"
-              << WoPerBlock << "_E0PerBlock_" << E0PerBlock << "_E1PerBlock_" << E1PerBlock
-              << "_KPerThread_" << KPerThread << "_HoPerThread_" << HoPerThread << "_WoPerThread_"
-              << WoPerThread << "_EPerThread_" << EPerThread << std::endl;
+    const auto conv_desc = ConvBiasActivDesc<decltype(in_n_c0_hi_wi_c1_desc),
+                                             decltype(wei_k_c0_y_x_c1_desc),
+                                             decltype(out_n_k0_ho_wo_k1_desc),
+                                             decltype(conv_strides),
+                                             decltype(conv_dilations),
+                                             decltype(in_left_pads),
+                                             decltype(in_right_pads)>{};
 
     for(int i = 0; i < 5; i++)
     {
         const auto ave_time =
-            conv_driver.Run(wei_k_c0_y_x_c1_desc,
-                            in_n_c0_hi_wi_c1_desc,
-                            out_n_k0_ho_wo_k1_desc,
-                            conv_strides,
-                            conv_dilations,
-                            in_left_pads,
-                            in_right_pads,
+            conv_driver.Run(conv_desc,
                             static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TBias*>(bias_k0_k1_device_buf.GetDeviceBuffer()),

@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_GEMM_V3_HPP
-#define CK_GRIDWISE_GEMM_V3_HPP
+
+#pragma once
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
@@ -165,6 +165,92 @@ __global__ void
                            ck::tensor_operation::element_wise::PassThrough{});
 }
 #endif
+
+template <ck::index_t BlockSize_,
+          ck::index_t E1_,
+          ck::index_t E2_,
+          ck::index_t K2_,
+          ck::index_t E0PerBlock_,
+          ck::index_t KPerBlock_,
+          ck::index_t HoPerBlock_,
+          ck::index_t WoPerBlock_,
+          ck::index_t E1PerBlock_,
+          ck::index_t KPerThread_,
+          ck::index_t HoPerThread_,
+          ck::index_t WoPerThread_,
+          ck::index_t EPerThread_,
+          typename ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2_,
+          typename ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2_,
+          ck::index_t ABlockTransferSrcScalarPerVector_E2_,
+          ck::index_t ABlockTransferDstScalarPerVector_E2_,
+          ck::index_t BThreadTransferSrcScalarPerVector_E2_,
+          ck::index_t CThreadTransferDstScalarPerVector_K_>
+struct GridGemmTuningParameters
+{
+    static constexpr auto BlockSize = BlockSize_;
+    static constexpr auto E1        = E1_;
+    static constexpr auto E2        = E2_;
+    static constexpr auto K2        = K2_;
+
+    static constexpr auto E0PerBlock = E0PerBlock_;
+    static constexpr auto KPerBlock  = KPerBlock_;
+    static constexpr auto HoPerBlock = HoPerBlock_;
+    static constexpr auto WoPerBlock = WoPerBlock_;
+    static constexpr auto E1PerBlock = E1PerBlock_;
+
+    static constexpr auto KPerThread  = KPerThread_;
+    static constexpr auto HoPerThread = HoPerThread_;
+    static constexpr auto WoPerThread = WoPerThread_;
+    static constexpr auto EPerThread  = EPerThread_;
+
+    static constexpr auto ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 =
+        ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2_{};
+    static constexpr auto ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
+        ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2_{};
+
+    static constexpr auto ABlockTransferSrcScalarPerVector_E2 =
+        ABlockTransferSrcScalarPerVector_E2_;
+    static constexpr auto ABlockTransferDstScalarPerVector_E2 =
+        ABlockTransferDstScalarPerVector_E2_;
+    static constexpr auto BThreadTransferSrcScalarPerVector_E2 =
+        BThreadTransferSrcScalarPerVector_E2_;
+    static constexpr auto CThreadTransferDstScalarPerVector_K =
+        CThreadTransferDstScalarPerVector_K_;
+
+    void printTuningParameters()
+    {
+        using namespace ck;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+
+        std::cout << "BlockSize_" << BlockSize << "_E1_" << E1 << "_E2_" << E2 << "_K2_" << K2
+                  << "_KPerBlock_" << KPerBlock << "_HoPerBlock_" << HoPerBlock << "_WoPerBlock_"
+                  << WoPerBlock << "_E0PerBlock_" << E0PerBlock << "_E1PerBlock_" << E1PerBlock
+                  << "_KPerThread_" << KPerThread << "_HoPerThread_" << HoPerThread
+                  << "_WoPerThread_" << WoPerThread << "_EPerThread_" << EPerThread
+                  << "_ABlockTransferThreadSliceLengths_<"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I0] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I1] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I2] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I3] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I4] << ">"
+                  << "_ABlockTransferThreadClusterLengths_<"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I0] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I1] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I2] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I3] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I4] << ">"
+                  << "_ABlockTransferSrcScalarPerVector_E2_" << ABlockTransferSrcScalarPerVector_E2
+                  << "_ABlockTransferDstScalarPerVector_E2_" << ABlockTransferDstScalarPerVector_E2
+                  << "_BThreadTransferSrcScalarPerVector_E2_"
+                  << BThreadTransferSrcScalarPerVector_E2 << "_CThreadTransferDstScalarPerVector_K_"
+                  << CThreadTransferDstScalarPerVector_K << std::endl;
+    }
+};
 
 template <index_t BlockSize,
           typename FloatAB,
@@ -1526,23 +1612,20 @@ struct GridwiseGemmDlops_km_kn_mn_v3
               typename CThreadBuff,
               typename CBlockIndex,
               typename CThreadIndex,
-              typename CThreadDesc_K1_N_H2_W2,
-              bool HasMainE0BlockLoop>
-    __device__ static void
-    GemmOpHasE1LoopSharedAThreadB(const BThreadBuff& b_thread_buf,
-                                  CThreadBuff& c_thread_buf,
-                                  FloatAB* __restrict__ p_shared_block,
-                                  const CBlockIndex& c_block_idx,
-                                  const CThreadIndex& c_thread_idx,
-                                  const CThreadDesc_K1_N_H2_W2&,
-                                  integral_constant<bool, HasMainE0BlockLoop>)
+              typename CThreadDesc_K1_N_H2_W2>
+    __device__ static void GemmOpHasE1LoopSharedAThreadB(const BThreadBuff& b_thread_buf,
+                                                         CThreadBuff& c_thread_buf,
+                                                         FloatAB* __restrict__ p_shared_block,
+                                                         // const CBlockIndex& c_block_idx,
+                                                         // const CThreadIndex& c_thread_idx,
+                                                         const CThreadDesc_K1_N_H2_W2&)
     {
-        constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
-        constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
+        // constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
+        // constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
 
         static_assert(E1 == E1PerBlock, "");
 
-        const index_t k_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        // const index_t k_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
         // const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
         // const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
         // const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
@@ -1627,10 +1710,10 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                       FloatAB* __restrict__ p_shared_block,
                                       const CBlockIndex& c_block_idx)
     {
-        const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
-        const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
-        const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
-        const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
+        const index_t k_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        // const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
+        // const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
+        // const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
 
         constexpr auto max_lds_align = Number<E2>{};
 
@@ -1698,7 +1781,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
         constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
 
-        const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        // const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
         const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
         const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
         const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
@@ -1859,8 +1942,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
               typename CThreadIndex,
               typename AGridDesc_E0_E1_K0_K1_E2,
               typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-              typename CThreadDesc_K1_N_H2_W2,
-              bool HasMainE0BlockLoop>
+              typename CThreadDesc_K1_N_H2_W2>
     __device__ static void GemmOpHasE1Loop(
         const AGlobalBuff& a_global_buf,
         const BGlobalBuff& b_global_buf,
@@ -1870,8 +1952,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const CThreadIndex& c_thread_idx,
         const AGridDesc_E0_E1_K0_K1_E2& a_e0_e1_k0_k1_e2_grid_desc,
         const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2& b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-        const CThreadDesc_K1_N_H2_W2&,
-        integral_constant<bool, HasMainE0BlockLoop>)
+        const CThreadDesc_K1_N_H2_W2&)
     {
         constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
         constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
@@ -2071,4 +2152,3 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     }
 };
 } // namespace ck
-#endif

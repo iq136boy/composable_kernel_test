@@ -90,25 +90,21 @@ int main(int argc, char* argv[])
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
-    constexpr auto I4 = Number<4>{};
-    constexpr auto I5 = Number<5>{};
-    constexpr auto I6 = Number<6>{};
+    // constexpr auto I2 = Number<2>{};
+    // constexpr auto I3 = Number<3>{};
+    // constexpr auto I4 = Number<4>{};
+    // constexpr auto I5 = Number<5>{};
+    // constexpr auto I6 = Number<6>{};
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
     if(argc != 23)
-        v, activ_type
-        {
-            printf("arg1 to 5: algo, do_verification, init_method, do_log, nrepeat\n");
-            printf(
-                "rest: N, K0, K1, C0, C1, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-                "RightPx\n");
-            exit(1);
-        }
-
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+    {
+        printf("arg1 to 5: algo, do_verification, init_method, do_log, nrepeat\n");
+        printf("rest: N, K0, K1, C0, C1, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+               "RightPx\n");
+        exit(1);
+    }
 
     const ConvForwardAlgo algo = static_cast<ConvForwardAlgo>(std::stoi(argv[1]));
     const bool do_verification = std::stoi(argv[2]);
@@ -175,8 +171,6 @@ int main(int argc, char* argv[])
     constexpr auto in_left_pad_w  = Number<CONV_IN_LEFT_PAD_W>{};
     constexpr auto in_right_pad_h = Number<CONV_IN_RIGHT_PAD_H>{};
     constexpr auto in_right_pad_w = Number<CONV_IN_RIGHT_PAD_W>{};
-
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::CONV_ACTIV;
 #else
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
@@ -198,7 +192,6 @@ int main(int argc, char* argv[])
     constexpr auto in_right_pad_h = I1;
     constexpr auto in_right_pad_w = I1;
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
 #endif
 
     constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
@@ -302,41 +295,28 @@ int main(int argc, char* argv[])
 
     bias.GenerateTensorValue(GeneratorTensor_2<bias_data_t>{-5, 5}, num_thread);
 
-    auto f_make_for_device_nchwc = [&]() {
-        const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
-        const auto wei_lengths_dev    = make_tuple(K0 * K1, C0, Y, X, C1);
-        const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
-        const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
-        const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
-        const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
-        const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
-
-        return make_tuple(in_lengths_dev,
-                          wei_lengths_dev,
-                          out_lengths_dev,
-                          conv_strides_dev,
-                          conv_dilations_dev,
-                          in_left_pads_dev,
-                          in_right_pads_dev);
-    };
+    const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
+    const auto wei_lengths_dev    = make_tuple(K0 * K1, C0, Y, X, C1);
+    const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
+    const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
+    const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
+    const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
+    const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
 
 #if USE_CONV_FWD_V5R1_NCHWC
     if(algo == ConvForwardAlgo::V5R1NCHWC)
     {
-        const auto tmp = f_make_for_device_nchwc();
-
         device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
             in_data_t,
             acc_data_t,
             bias_data_t,
-            out_data_t,
-            activ_type>(tmp[I0],
-                        tmp[I1],
-                        tmp[I2],
-                        tmp[I3],
-                        tmp[I4],
-                        tmp[I5],
-                        tmp[I6],
+            out_data_t>(in_lengths_dev,
+                        wei_lengths_dev,
+                        out_lengths_dev,
+                        conv_strides_dev,
+                        conv_dilations_dev,
+                        in_left_pads_dev,
+                        in_right_pads_dev,
                         in,
                         wei,
                         bias,
