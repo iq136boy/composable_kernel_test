@@ -82,10 +82,15 @@ __global__ void
     using GridwiseGemm1 = decltype(gemm1_arg.gridwise_gemm_desc);
     using GridwiseGemm2 = decltype(gemm2_arg.gridwise_gemm_desc);
 
-    constexpr index_t shared_block_size =
-        GridwiseGemm1::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+    constexpr index_t shared_block_size = (GridwiseGemm1::GetSharedMemoryNumberOfByte() +
+                                           GridwiseGemm2::GetSharedMemoryNumberOfByte()) /
+                                          sizeof(FloatAB);
 
     __shared__ FloatAB p_shared_block[shared_block_size];
+
+    FloatAB* p_shared_a1 = p_shared_block;
+    FloatAB* p_shared_a2 =
+        p_shared_block + (GridwiseGemm1::GetSharedMemoryNumberOfByte() / sizeof(FloatAB));
 
     constexpr auto a1_e0_e1_k0_k1_e2_grid_desc = gemm1_arg.a_e0_e1_k0_k1_e2_grid_desc;
     constexpr auto b1_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
@@ -120,17 +125,28 @@ __global__ void
 
     constexpr auto HasMainE0BlockLoop = false;
 
+    GridwiseGemm1::LoadABlock(
+        a1_global_buf, a1_e0_e1_k0_k1_e2_grid_desc, p_shared_a1, c1_k_n_h_w_block_cluster_idx);
+
+    constexpr auto a2_e0_e1_k0_k1_e2_grid_desc = gemm2_arg.a_e0_e1_k0_k1_e2_grid_desc;
+
+    const auto a2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_a2_grid, a2_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+
+    GridwiseGemm1::LoadABlock(
+        a2_global_buf, a2_e0_e1_k0_k1_e2_grid_desc, p_shared_a2, c1_k_n_h_w_block_cluster_idx);
+
+    block_sync_lds();
+
     // GemmOp
-    GridwiseGemm1::GemmOpHasE1Loop(a1_global_buf,
-                                   b1_global_buf,
-                                   c1_thread_buf,
-                                   p_shared_block,
-                                   c1_k_n_h_w_block_cluster_idx,
-                                   c1_thread_mtx_index,
-                                   a1_e0_e1_k0_k1_e2_grid_desc,
-                                   b1_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                                   c1_k1_n_h2_w2_thread_gemm_desc,
-                                   integral_constant<bool, HasMainE0BlockLoop>{});
+    GridwiseGemm1::GemmOpHasE1LoopSharedA(b1_global_buf,
+                                          c1_thread_buf,
+                                          p_shared_a1,
+                                          c1_k_n_h_w_block_cluster_idx,
+                                          c1_thread_mtx_index,
+                                          b1_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+                                          c1_k1_n_h2_w2_thread_gemm_desc,
+                                          integral_constant<bool, HasMainE0BlockLoop>{});
 
 #if 0
     // Bias
@@ -166,9 +182,6 @@ __global__ void
 #endif
 
 #if 1
-    constexpr auto a2_e0_e1_k0_k1_e2_grid_desc = gemm2_arg.a_e0_e1_k0_k1_e2_grid_desc;
-    constexpr auto c2_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
-        gemm2_arg.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
 
     constexpr auto c2_k1_n_h2_w2_thread_gemm_desc = GridwiseGemm2::MakeCK1NH2W2ThreadDescriptor();
 
@@ -181,9 +194,6 @@ __global__ void
 
     static_for<0, c2_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}(
         [&](auto i) { c2_thread_buf(i) = 0; });
-
-    const auto a2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_a2_grid, a2_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
 
     constexpr auto b2_e1_n_h2_w2_e2_thread_desc = GridwiseGemm2::MakeBE1NH2W2E2ThreadDescriptor();
 
@@ -200,16 +210,16 @@ __global__ void
     CK1NH2W2ToBE1NH2W2E2(
         c1_k1_n_h2_w2_thread_gemm_desc, b2_e1_n_h2_w2_e2_thread_desc, c1_thread_buf, b2_thread_buf);
 
-    GridwiseGemm2::GemmOpHasE1LoopV2(a2_global_buf,
-                                     b2_thread_buf,
-                                     c2_thread_buf,
-                                     p_shared_block,
-                                     c1_k_n_h_w_block_cluster_idx,
-                                     c1_thread_mtx_index,
-                                     a2_e0_e1_k0_k1_e2_grid_desc,
-                                     b2_e1_n_h2_w2_e2_thread_desc,
-                                     c2_k1_n_h2_w2_thread_gemm_desc,
-                                     integral_constant<bool, HasMainE0BlockLoop>{});
+    GridwiseGemm2::GemmOpHasE1LoopSharedAThreadB(b2_thread_buf,
+                                                 c2_thread_buf,
+                                                 p_shared_a2,
+                                                 c1_k_n_h_w_block_cluster_idx,
+                                                 c1_thread_mtx_index,
+                                                 c2_k1_n_h2_w2_thread_gemm_desc,
+                                                 integral_constant<bool, HasMainE0BlockLoop>{});
+
+    constexpr auto c2_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
+        gemm2_arg.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
 
     auto c2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
         p_c2_grid, c2_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
@@ -689,7 +699,7 @@ struct DriverDynamicConv3x3Conv1x1BiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1
         // using CBlockIdToBlockClusterAdaptor_K_N_H_W =
         // decltype(GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor);
 
-#if 1
+#if 0
         const auto kernel1 =
             kernel_conv_bias_activ_dlops_v4<decltype(GemmArg1), FloatAB, FloatAcc, FloatC, FloatC>;
 

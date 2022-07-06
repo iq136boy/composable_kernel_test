@@ -271,7 +271,7 @@ void device_conv3x3_conv1x1_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_
                              CONV1_K,                      // KPerBlock
                              16,                           // HoPerBlock
                              64,                           // WoPerBlock
-                             1,                            // E1PerBlock
+                             2,                            // E1PerBlock
                              CONV1_K,                      // KPerThread
                              2,                            // HoPerThread
                              2,                            // WoPerThread
