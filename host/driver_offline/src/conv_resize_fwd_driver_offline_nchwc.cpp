@@ -12,7 +12,8 @@
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
 #include "device_tensor.hpp"
-#include "device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
+#include "device_convolution_resize_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
+#include "ck_conv_fig.h"
 
 #define USE_DYNAMIC_MODE 0
 #define USE_CONV_FWD_V5R1_NCHWC 1
@@ -187,7 +188,6 @@ int main(int argc, char* argv[])
     constexpr auto in_right_pad_h = Number<CONV_IN_RIGHT_PAD_H>{};
     constexpr auto in_right_pad_w = Number<CONV_IN_RIGHT_PAD_W>{};
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::CONV_ACTIV;
 #else
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
@@ -209,7 +209,6 @@ int main(int argc, char* argv[])
     constexpr auto in_right_pad_h = I1;
     constexpr auto in_right_pad_w = I1;
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
 #endif
 
     constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
@@ -350,25 +349,24 @@ int main(int argc, char* argv[])
     {
         const auto tmp = f_make_for_device_nchwc();
 
-        device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<in_data_t,
-                                                                                        acc_data_t,
-                                                                                        bias_data_t,
-                                                                                        out_data_t,
-                                                                                        activ_type>(
-            tmp[I0], // in_lengths_dev
-            tmp[I1], // wei_lengths_dev
-            tmp[I2], // add_lengths_dev
-            tmp[I3], // out_lengths_dev
-            tmp[I4], // conv_strides_dev
-            tmp[I5], // conv_dilations_dev
-            tmp[I6], // in_left_pads_dev
-            tmp[I7], // in_right_pads_dev
-            in,
-            wei,
-            bias,
-            add,
-            add_device,
-            nrepeat);
+        device_convolution_resize_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
+            in_data_t,
+            acc_data_t,
+            bias_data_t,
+            out_data_t>(tmp[I0], // in_lengths_dev
+                        tmp[I1], // wei_lengths_dev
+                        tmp[I2], // add_lengths_dev
+                        tmp[I3], // out_lengths_dev
+                        tmp[I4], // conv_strides_dev
+                        tmp[I5], // conv_dilations_dev
+                        tmp[I6], // in_left_pads_dev
+                        tmp[I7], // in_right_pads_dev
+                        in,
+                        wei,
+                        bias,
+                        add,
+                        add_device,
+                        nrepeat);
     }
 #endif
 

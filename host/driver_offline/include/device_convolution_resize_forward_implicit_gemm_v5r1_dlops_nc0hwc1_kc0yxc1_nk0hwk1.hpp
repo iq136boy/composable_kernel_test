@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "host_tensor.hpp"
-#include "driver_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
+#include "driver_convolution_resize_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
 
 template <typename TInWei,
           typename TAcc,
@@ -9,14 +9,16 @@ template <typename TInWei,
           typename TOut,
           typename InLengths,
           typename WeiLengths,
+          typename AddLengths,
           typename OutLengths,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1(
+void device_convolution_resize_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1(
     const InLengths& in_n_c0_hi_wi_c1_lengths,
     const WeiLengths& wei_k_c0_y_x_c1_lengths,
+    const AddLengths& add_n_k0_hox2_wox2_k1_lengths,
     const OutLengths& out_n_k0_ho_wo_k1_lengths,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
@@ -25,7 +27,8 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const Tensor<TInWei>& in_n_c0_hi_wi_c1,
     const Tensor<TInWei>& wei_k_c0_y_x_c1,
     const Tensor<TBias>& bias_k0_k1,
-    Tensor<TOut>& out_n_k0_ho_wo_k1,
+    const Tensor<TOut>& add_n_k0_hox2_wox2_k1,
+    Tensor<TOut>& add_n_k0_hox2_wox2_k1_out,
     ck::index_t nrepeat)
 {
     using namespace ck;
@@ -53,15 +56,20 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const auto Y = wei_k_c0_y_x_c1_lengths[I2];
     const auto X = wei_k_c0_y_x_c1_lengths[I3];
 
+    const auto Hox2 = add_n_k0_hox2_wox2_k1_lengths[I2];
+    const auto Wox2 = add_n_k0_hox2_wox2_k1_lengths[I3];
+
     DeviceMem in_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                           in_n_c0_hi_wi_c1.mDesc.GetElementSpace());
     DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
     DeviceMem bias_k0_k1_device_buf(sizeof(TBias) * bias_k0_k1.mDesc.GetElementSpace());
-    DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
-                                           out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
+    DeviceMem add_n_k0_hox2_wox2_k1_device_buf(sizeof(TOut) *
+                                               add_n_k0_hox2_wox2_k1.mDesc.GetElementSpace());
+
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
+    add_n_k0_hox2_wox2_k1_device_buf.ToDevice(add_n_k0_hox2_wox2_k1.mData.data());
 
     GridGemmTuningParameters<256,        // BlockSize
                              C0 * Y * X, // E1
@@ -97,19 +105,22 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
     const auto wei_k_c0_y_x_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
+    const auto resize_n_k0_hx_wx_k1_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hox2, Wox2, K1));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
-    constexpr auto conv_desc = ConvBiasActivDesc<decltype(in_n_c0_hi_wi_c1_desc),
-                                                 decltype(wei_k_c0_y_x_c1_desc),
-                                                 decltype(out_n_k0_ho_wo_k1_desc),
-                                                 decltype(conv_strides),
-                                                 decltype(conv_dilations),
-                                                 decltype(in_left_pads),
-                                                 decltype(in_right_pads)>{};
+    constexpr auto conv_desc = ConvBiasActivResizeDesc<decltype(in_n_c0_hi_wi_c1_desc),
+                                                       decltype(wei_k_c0_y_x_c1_desc),
+                                                       decltype(out_n_k0_ho_wo_k1_desc),
+                                                       decltype(resize_n_k0_hx_wx_k1_desc),
+                                                       decltype(conv_strides),
+                                                       decltype(conv_dilations),
+                                                       decltype(in_left_pads),
+                                                       decltype(in_right_pads)>{};
 
     constexpr auto conv_driver =
-        DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1<
+        DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_resize<
             TInWei,
             TAcc,
             TBias,
@@ -119,11 +130,12 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
 
     for(int i = 0; i < 5; i++)
     {
+
         const auto ave_time =
             conv_driver.Run(static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TBias*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+                            static_cast<TOut*>(add_n_k0_hox2_wox2_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
 
         {
@@ -135,5 +147,5 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         }
     }
 
-    out_n_k0_ho_wo_k1_device_buf.FromDevice(out_n_k0_ho_wo_k1.mData.data());
+    add_n_k0_hox2_wox2_k1_device_buf.FromDevice(add_n_k0_hox2_wox2_k1_out.mData.data());
 }

@@ -2,13 +2,11 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "driver_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
-#include "ck_conv_fig.h"
 
 template <typename TInWei,
           typename TAcc,
           typename TBias,
           typename TOut,
-          ck::ActivTypeEnum_t activ_type,
           typename InLengths,
           typename WeiLengths,
           typename MaxLengths,
@@ -75,182 +73,67 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
     max_n_k0_hx_wx_k1_device_buf.ToDevice(max_n_k0_hx_wx_k1.mData.data());
 
-    constexpr index_t InWeiVectorSize = 8;
-
-    if(C1 % InWeiVectorSize != 0)
-    {
-        throw std::runtime_error("wrong! C1 cannot be divided by InWeiVectorSize");
-    }
-
-#if USE_CONV_FIG
-    constexpr index_t BlockSize = CONV_BLOCK_SIZE;
-
-    constexpr index_t E1 = CONV_E1;
-    constexpr index_t E2 = CONV_E2;
-    constexpr index_t K2 = CONV_K2;
-
-    constexpr index_t E0PerBlock = CONV_E0_PER_BLOCK;
-    constexpr index_t KPerBlock  = CONV_K_PER_BLOCK;
-    constexpr index_t HoPerBlock = CONV_HO_PER_BLOCK;
-    constexpr index_t WoPerBlock = CONV_WO_PER_BLOCK;
-    constexpr index_t E1PerBlock = CONV_E1_PER_BLOCK;
-
-    constexpr index_t KPerThread  = CONV_K_PER_THREAD;
-    constexpr index_t HoPerThread = CONV_HO_PER_THREAD;
-    constexpr index_t WoPerThread = CONV_WO_PER_THREAD;
-    constexpr index_t EPerThread  = CONV_E_PER_THREAD;
-
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 =
-        Sequence<CONV_ABLOCK_TRANS_THREAD_SLICE_LENGTHS>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
-        Sequence<CONV_ABLOCK_TRANS_THREAD_CLUSTER_LENGTHS>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
-    constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
-    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
-#elif 0
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t E1 = C0 * Y * X;
-    constexpr index_t E2 = C1;
-    constexpr index_t K2 = 4;
-
-    constexpr index_t E0PerBlock = 1;
-    constexpr index_t KPerBlock  = 16;
-    constexpr index_t HoPerBlock = 16;
-    constexpr index_t WoPerBlock = 64;
-    constexpr index_t E1PerBlock = 2;
-
-    constexpr index_t KPerThread  = 16;
-    constexpr index_t HoPerThread = 2;
-    constexpr index_t WoPerThread = 2;
-    constexpr index_t EPerThread  = 1;
-
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, Y * X, 1, 1, C1>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, C0, 1, KPerBlock, 1>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
-    constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
-    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
-#elif 0
-    constexpr index_t BlockSize = 128;
-
-    constexpr index_t E0PerBlock = 1;
-    constexpr index_t KPerBlock  = 16;
-    constexpr index_t HoPerBlock = 8;
-    constexpr index_t WoPerBlock = 64;
-    constexpr index_t E1PerBlock = 2;
-
-    constexpr index_t E1 = C0 * Y * X;
-    constexpr index_t E2 = C1;
-    constexpr index_t K2 = 4;
-
-    constexpr index_t KPerThread  = 16;
-    constexpr index_t HoPerThread = 2;
-    constexpr index_t WoPerThread = 2;
-    constexpr index_t EPerThread  = 1;
-
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, 7, 1, 1, C1>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, 2, 1, KPerBlock, 1>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
-    constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
-    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
-#elif 0
-    constexpr index_t BlockSize = 64;
-
-    constexpr index_t E1 = C0 * Y * X;
-    constexpr index_t E2 = C1;
-    constexpr index_t K2 = 4;
-
-    constexpr index_t E0PerBlock = 1;
-    constexpr index_t KPerBlock  = 16;
-    constexpr index_t HoPerBlock = 8;
-    constexpr index_t WoPerBlock = 32;
-    constexpr index_t E1PerBlock = 1;
-
-    constexpr index_t KPerThread  = 16;
-    constexpr index_t HoPerThread = 2;
-    constexpr index_t WoPerThread = 2;
-    constexpr index_t EPerThread  = 1;
-
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, 16 * Y * X, 1, 1, C1>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, 4, 1, KPerBlock, 1>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
-    constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
-    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
-#endif
-
-    if(KPerThread % InWeiVectorSize != 0)
-    {
-        throw std::runtime_error("wrong! C1 cannot be divided by InWeiVectorSize");
-    }
+    GridGemmTuningParameters<256,        // BlockSize
+                             C0 * Y * X, // E1
+                             C1,         // E2
+                             2,          // K2
+                             1,          // E0PerBlock
+                             K,          // KPerBlock
+                             16,         // HoPerBlock
+                             64,         // WoPerBlock
+                             2,          // E1PerBlock
+                             K,          // KPerThread
+                             2,          // HoPerThread
+                             2,          // WoPerThread
+                             1,          // EPerThread
+                             Sequence<1,
+                                      C0 * Y * X,
+                                      1,
+                                      K,
+                                      C1>, // ABlockTransferBlockSliceLengths_E0_E1_K0_K1_E2
+                             Sequence<1,
+                                      C0,
+                                      1,
+                                      K,
+                                      1>, // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
+                             C1,          // ABlockTransferSrcScalarPerVector_E2
+                             C1,          // ABlockTransferDstScalarPerVector_E2
+                             C1,          // BThreadTransferSrcScalarPerVector_E2
+                             K1           // CThreadTransferDstScalarPerVector_K
+                             >
+        conv_tuning_parameters{};
 
     const auto in_n_c0_hi_wi_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, E2));
+        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
     const auto wei_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, E2));
+        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
     const auto max_n_k0_hx_wx_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hx, Wx, K1));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
+    constexpr auto conv_desc = ConvBiasActivMaxPoolDesc<decltype(in_n_c0_hi_wi_c1_desc),
+                                                        decltype(wei_k_c0_y_x_c1_desc),
+                                                        decltype(out_n_k0_ho_wo_k1_desc),
+                                                        decltype(max_n_k0_hx_wx_k1_desc),
+                                                        decltype(conv_strides),
+                                                        decltype(conv_dilations),
+                                                        decltype(in_left_pads),
+                                                        decltype(in_right_pads)>{};
+
     constexpr auto conv_driver =
         DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_maxpool<
-            BlockSize,
             TInWei,
             TAcc,
             TBias,
             TOut,
-            E1,
-            E2,
-            K2,
-            KPerBlock,
-            HoPerBlock,
-            WoPerBlock,
-            E0PerBlock,
-            E1PerBlock,
-            KPerThread,
-            HoPerThread,
-            WoPerThread,
-            EPerThread,
-            ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2,
-            ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2,
-            ABlockTransferSrcScalarPerVector_E2,
-            ABlockTransferDstScalarPerVector_E2,
-            BThreadTransferSrcScalarPerVector_E2,
-            CThreadTransferDstScalarPerVector_K,
-            activ_type>{};
-
-    std::cerr << "input_"
-              << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
-              << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_convout_n" << N << "k" << K0
-              << "h" << Ho << "w" << Wo << "k" << K1 << "_maxpoolout_n" << N << "k" << K0 << "h"
-              << Ho / 2 << "w" << Wo / 2 << "k" << K1 << std::endl;
-
-    std::cerr << "BlockSize_" << BlockSize << "_E1_" << E1 << "_E2_" << E2 << "_K2_" << K2
-              << "_KPerBlock_" << KPerBlock << "_HoPerBlock_" << HoPerBlock << "_WoPerBlock_"
-              << WoPerBlock << "_E0PerBlock_" << E0PerBlock << "_E1PerBlock_" << E1PerBlock
-              << "_KPerThread_" << KPerThread << "_HoPerThread_" << HoPerThread << "_WoPerThread_"
-              << WoPerThread << "_EPerThread_" << EPerThread << std::endl;
+            decltype(conv_desc),
+            decltype(conv_tuning_parameters)>{};
 
     for(int i = 0; i < 5; i++)
     {
         const auto ave_time =
-            conv_driver.Run(wei_k_c0_y_x_c1_desc,
-                            in_n_c0_hi_wi_c1_desc,
-                            out_n_k0_ho_wo_k1_desc,
-                            max_n_k0_hx_wx_k1_desc,
-                            conv_strides,
-                            conv_dilations,
-                            in_left_pads,
-                            in_right_pads,
-                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+            conv_driver.Run(static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TBias*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),

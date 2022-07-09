@@ -1,5 +1,4 @@
-#ifndef DRIVER_CONVOLUTION_BIAS_ACTIV_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NC0HWc1_KC0YXC1_NK0HWK1_HPP
-#define DRIVER_CONVOLUTION_BIAS_ACTIV_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NC0HWc1_KC0YXC1_NK0HWK1_HPP
+#pragma once
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -11,51 +10,23 @@ namespace ck {
 template <typename InLengths,
           typename WeiLengths,
           typename OutLengths,
+          typename ResizeLengths,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-struct ConvBiasActivDesc
+struct ConvBiasActivResizeDesc
 {
-#if 0
-    InLengths in_n_c0_hi_wi_c1_desc;
-    WeiLengths wei_c0_y_x_k_c1_desc;
-    OutLengths out_n_k0_ho_wo_k1_desc;
-
-    ConvStrides conv_strides;
-    ConvDilations conv_dilations;
-
-    InLeftPads in_left_pads;
-    InRightPads in_right_pads;
-
-
-    ConvBiasActivDesc(InLengths in_n_c0_hi_wi_c1_desc_,
-                      WeiLengths wei_c0_y_x_k_c1_desc_,
-                      OutLengths out_n_k0_ho_wo_k1_desc_,
-                      ConvStrides conv_strides_,
-                      ConvDilations conv_dilations_,
-                      InLeftPads in_left_pads_,
-                      InRightPads in_right_pads_)
-    {
-        in_n_c0_hi_wi_c1_desc  = in_n_c0_hi_wi_c1_desc_;
-        wei_c0_y_x_k_c1_desc   = wei_c0_y_x_k_c1_desc_;
-        out_n_k0_ho_wo_k1_desc = out_n_k0_ho_wo_k1_desc_;
-        conv_strides           = conv_strides_;
-        conv_dilations         = conv_dilations_;
-        in_left_pads           = in_left_pads_;
-        in_right_pads          = in_right_pads_;
-    }
-#else
-    static constexpr auto in_n_c0_hi_wi_c1_desc  = InLengths{};
-    static constexpr auto wei_c0_y_x_k_c1_desc   = WeiLengths{};
-    static constexpr auto out_n_k0_ho_wo_k1_desc = OutLengths{};
+    static constexpr auto in_n_c0_hi_wi_c1_desc     = InLengths{};
+    static constexpr auto wei_c0_y_x_k_c1_desc      = WeiLengths{};
+    static constexpr auto out_n_k0_ho_wo_k1_desc    = OutLengths{};
+    static constexpr auto resize_n_k0_hx_wx_k1_desc = ResizeLengths{};
 
     static constexpr auto conv_strides   = ConvStrides{};
     static constexpr auto conv_dilations = ConvDilations{};
 
     static constexpr auto in_left_pads  = InLeftPads{};
     static constexpr auto in_right_pads = InRightPads{};
-#endif
 
     void printConvDesc()
     {
@@ -103,51 +74,26 @@ template <typename GridwiseGemmDesc,
           typename BE0E1NH0H1H2W0W1W2E2GridDesc,
           typename BiasK0K1GridDesc,
           typename CK0K1NH0H1H2W0W1W2GridDesc,
+          typename DK0K1NH0H1HxW0W1WxGridDesc,
           typename CBlockIdToKNHoWoBlockClusterAdaptor,
           index_t GridSize,
           index_t BlockSize>
-struct GemmBiasActivArguments
+struct GemmBiasActivResizeArguments
 {
-    static constexpr auto gridwise_gemm_desc = GridwiseGemmDesc{};
-
-    // AE0E1K0K1E2GridDesc a_e0_e1_k0_k1_e2_grid_desc;
-    // BE0E1NH0H1H2W0W1W2E2GridDesc b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc;
-    // CK0K1NH0H1H2W0W1W2GridDesc c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
-    // CBlockIdToKNHoWoBlockClusterAdaptor c_blockid_to_k_n_h_w_block_cluster_adaptor;
-
+    static constexpr auto gridwise_gemm_desc                       = GridwiseGemmDesc{};
     static constexpr auto a_e0_e1_k0_k1_e2_grid_desc               = AE0E1K0K1E2GridDesc{};
     static constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc = BE0E1NH0H1H2W0W1W2E2GridDesc{};
     static constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc    = CK0K1NH0H1H2W0W1W2GridDesc{};
     static constexpr auto bias_k0_k1_grid_desc                     = BiasK0K1GridDesc{};
+    static constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc    = DK0K1NH0H1HxW0W1WxGridDesc{};
     static constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
         CBlockIdToKNHoWoBlockClusterAdaptor{};
 
     static constexpr index_t grid_size  = GridSize;
     static constexpr index_t block_size = BlockSize;
-    // bool has_main_e0_block_loop;
-
-#if 0
-    GemmBiasActivArguments(
-        // const AE0E1K0K1E2GridDesc a_e0_e1_k0_k1_e2_grid_desc_,
-        // const BE0E1NH0H1H2W0W1W2E2GridDesc b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc_,
-        // const CK0K1NH0H1H2W0W1W2GridDesc c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_,
-        // const CBlockIdToKNHoWoBlockClusterAdaptor c_blockid_to_k_n_h_w_block_cluster_adaptor_,
-        const index_t grid_size_,
-        const index_t block_size_)
-    {
-        // a_e0_e1_k0_k1_e2_grid_desc                 = a_e0_e1_k0_k1_e2_grid_desc_;
-        // b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc   = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc_;
-        // c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc      = c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_;
-        // c_blockid_to_k_n_h_w_block_cluster_adaptor = c_blockid_to_k_n_h_w_block_cluster_adaptor_;
-
-        grid_size  = grid_size_;
-        block_size = block_size_;
-        // has_main_e0_block_loop = has_main_e0_block_loop_;
-    }
-#endif
 };
 
-template <typename GemmBiasActivArguments,
+template <typename GemmBiasActivResizeArguments,
           typename FloatAB,
           typename FloatAcc,
           typename FloatBias,
@@ -156,29 +102,39 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_conv_bias_activ_dlops_v3(const FloatAB* __restrict__ p_a_grid,
-                                        const FloatAB* __restrict__ p_b_grid,
-                                        const FloatBias* __restrict__ p_bias_grid,
-                                        FloatC* __restrict__ p_c_grid,
-                                        float scaleGemm)
+        kernel_conv_bias_activ_resize_dlops_v3(const FloatAB* __restrict__ p_a_grid,
+                                               const FloatAB* __restrict__ p_b_grid,
+                                               const FloatBias* __restrict__ p_bias_grid,
+                                               FloatC* __restrict__ p_d_grid,
+                                               float scaleGemm)
 {
-    constexpr auto gemm_bias_activ_arg = GemmBiasActivArguments{};
 
-    using GridwiseGemm = decltype(gemm_bias_activ_arg.gridwise_gemm_desc);
+    constexpr auto gemm_bias_activ_resize_arg = GemmBiasActivResizeArguments{};
+
+    using GridwiseGemm = decltype(gemm_bias_activ_resize_arg.gridwise_gemm_desc);
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 
     __shared__ FloatAB p_shared_block[shared_block_size];
 
-    constexpr auto a_e0_e1_k0_k1_e2_grid_desc = gemm_bias_activ_arg.a_e0_e1_k0_k1_e2_grid_desc;
+    constexpr auto a_e0_e1_k0_k1_e2_grid_desc =
+        gemm_bias_activ_resize_arg.a_e0_e1_k0_k1_e2_grid_desc;
     constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
-        gemm_bias_activ_arg.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc;
-    constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
-        gemm_bias_activ_arg.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
-
+        gemm_bias_activ_resize_arg.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc;
+    // constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
+    // gemm_bias_activ_resize_arg.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
+    constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc =
+        gemm_bias_activ_resize_arg.d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc;
     constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
-        gemm_bias_activ_arg.c_blockid_to_k_n_h_w_block_cluster_adaptor;
+        gemm_bias_activ_resize_arg.c_blockid_to_k_n_h_w_block_cluster_adaptor;
+
+    // static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
+
+    const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_a_grid, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+    const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_b_grid, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
 
     constexpr auto c_k1_n_h2_w2_thread_gemm_desc = GridwiseGemm::MakeCK1NH2W2ThreadDescriptor();
 
@@ -189,16 +145,10 @@ __global__ void
                  true>
         c_thread_buf;
 
-    static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}(
-        [&](auto i) { c_thread_buf(i) = 0; });
+    const index_t block_id = get_block_1d_id();
 
     const auto c_k_n_h_w_block_cluster_idx =
-        GridwiseGemm::GetCBlockIndex(c_blockid_to_k_n_h_w_block_cluster_adaptor, get_block_1d_id());
-
-    const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_a_grid, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-    const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_b_grid, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
+        GridwiseGemm::GetCBlockIndex(c_blockid_to_k_n_h_w_block_cluster_adaptor, block_id);
 
     const auto c_thread_mtx_index = GridwiseGemm::GetCThreadIndex();
 
@@ -213,9 +163,9 @@ __global__ void
                                   b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                   c_k1_n_h2_w2_thread_gemm_desc);
 
-    const auto bias_k0_k1_grid_desc = gemm_bias_activ_arg.bias_k0_k1_grid_desc;
+    const auto bias_k0_k1_grid_desc = gemm_bias_activ_resize_arg.bias_k0_k1_grid_desc;
 
-    const auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
         p_bias_grid, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
     // Bias
@@ -226,29 +176,30 @@ __global__ void
                          bias_k0_k1_grid_desc,
                          c_k1_n_h2_w2_thread_gemm_desc);
 
-    auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_c_grid, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-
+    // Activ
     GridwiseGemm::ActivOp(c_thread_buf,
                           c_k1_n_h2_w2_thread_gemm_desc,
                           ck::tensor_operation::element_wise::RequantHardTanh{scaleGemm});
 
-    GridwiseGemm::WriteOut(c_thread_buf,
-                           c_global_buf,
-                           c_k_n_h_w_block_cluster_idx,
-                           c_thread_mtx_index,
-                           c_k1_n_h2_w2_thread_gemm_desc,
-                           c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                           ck::tensor_operation::element_wise::PassThrough{});
+    auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_d_grid, d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize());
+
+    // Resize_Add
+    GridwiseGemm::ResizeAdd(c_thread_buf,
+                            d_global_buf,
+                            c_k_n_h_w_block_cluster_idx,
+                            c_thread_mtx_index,
+                            c_k1_n_h2_w2_thread_gemm_desc,
+                            d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
 }
 
 template <typename FloatAB,
           typename FloatAcc,
           typename FloatBias,
           typename FloatC,
-          typename ConvBiasActivDesc,
+          typename ConvBiasActivResizeDesc,
           typename GridGemmTuningParameters>
-struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1
+struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_resize
 {
     static constexpr auto BlockSize = Number<GridGemmTuningParameters::BlockSize>{};
 
@@ -286,10 +237,46 @@ struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
+    static constexpr auto I7 = Number<7>{};
 
-    constexpr auto MakeGridwiseGemmBiasActiv() const
+    template <typename DGridDesc_K_N_Hx_Wx>
+    __host__ __device__ static constexpr auto
+    MakeDK0K1NH0H1HxW0W1WxGridDescriptorResize(const DGridDesc_K_N_Hx_Wx& d_k_n_hx_wx_grid_desc)
     {
-        constexpr auto conv_desc = ConvBiasActivDesc{};
+        const auto K  = d_k_n_hx_wx_grid_desc.GetLength(I0);
+        const auto N  = d_k_n_hx_wx_grid_desc.GetLength(I1);
+        const auto Hx = d_k_n_hx_wx_grid_desc.GetLength(I2);
+        const auto Wx = d_k_n_hx_wx_grid_desc.GetLength(I3);
+
+        const auto K1 = Number<KPerBlock>{};
+        const auto K0 = Number<K / K1>{};
+
+        const auto H2 = Number<HoPerThread * 2>{};
+        const auto H1 = Number<HoPerBlock / HoPerThread>{};
+
+        const auto W2 = Number<WoPerThread * 2>{};
+        const auto W1 = Number<WoPerBlock / WoPerThread>{};
+
+        const auto H0 = Number<Hx / (H1 * H2)>{};
+        const auto W0 = Number<Wx / (W1 * W2)>{};
+
+        const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = transform_tensor_descriptor(
+            d_k_n_hx_wx_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
+                       make_pass_through_transform(N),
+                       make_unmerge_transform(make_tuple(H0, H1, H2)),
+                       make_unmerge_transform(make_tuple(W0, W1, W2))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}, Sequence<6, 7, 8>{}));
+
+        return d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc;
+    }
+
+    constexpr auto MakeGridwiseGemmBiasActivResize() const
+    {
+        constexpr auto conv_desc = ConvBiasActivResizeDesc{};
 
         constexpr auto in_n_c0_hi_wi_c1_global_desc = conv_desc.in_n_c0_hi_wi_c1_desc;
 
@@ -426,6 +413,22 @@ struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc
             make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
+        const auto Hox2 = Number<conv_desc.resize_n_k0_hx_wx_k1_desc.GetLength(I2)>{};
+        const auto Wox2 = Number<conv_desc.resize_n_k0_hx_wx_k1_desc.GetLength(I3)>{};
+
+        const auto OutRightPadHx = Number<OutRightPadH * 2>{};
+        const auto OutRightPadWx = Number<OutRightPadW * 2>{};
+
+        // resize tensor
+        const auto d_k_n_hx_wx_grid_desc = transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hox2, Wox2, K1)),
+            make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                       make_pass_through_transform(N),
+                       make_pad_transform(Hox2, I0, OutRightPadHx),
+                       make_pad_transform(Wox2, I0, OutRightPadWx)),
+            make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
         std::cerr << "Hop = " << Hop << " Wop = " << Wop << std::endl;
 
         if(!((K % KPerBlock) == 0 && (Hop % HoPerBlock) == 0 && (Wop % WoPerBlock) == 0 &&
@@ -491,6 +494,8 @@ struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc
             GridwiseGemm::MakeBE0E1NH0H1H2W0W1W2E2GridDescriptor(b_e0_e1_n_ho_wo_e2_grid_desc);
         const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
             GridwiseGemm::MakeCK0K1NH0H1H2W0W1W2GridDescriptor(c_k_n_hop_wop_grid_desc);
+        const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc =
+            MakeDK0K1NH0H1HxW0W1WxGridDescriptorResize(d_k_n_hx_wx_grid_desc);
 
         static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
 
@@ -518,47 +523,47 @@ struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
         using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 = decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
         using BiasDesc_K0_K1                      = decltype(bias_k0_k1_grid_desc);
+        using DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx = decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
         using CBlockIdToBlockClusterAdaptor_K_N_H_W =
             decltype(c_blockid_to_k_n_h_w_block_cluster_adaptor);
 
-        return GemmBiasActivArguments<GridwiseGemm,
-                                      AGridDesc_E0_E1_K0_K1_E2,
-                                      BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-                                      BiasDesc_K0_K1,
-                                      CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
-                                      CBlockIdToBlockClusterAdaptor_K_N_H_W,
-                                      grid_size,
-                                      BlockSize>{};
+        return GemmBiasActivResizeArguments<GridwiseGemm,
+                                            AGridDesc_E0_E1_K0_K1_E2,
+                                            BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
+                                            BiasDesc_K0_K1,
+                                            CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
+                                            DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
+                                            CBlockIdToBlockClusterAdaptor_K_N_H_W,
+                                            grid_size,
+                                            BlockSize>{};
     }
 
     __host__ float Run(const FloatAB* __restrict__ p_a_grid,
                        const FloatAB* __restrict__ p_b_grid,
                        const FloatBias* __restrict__ p_bias_grid,
-                       FloatC* __restrict__ p_c_grid,
+                       FloatC* __restrict__ p_d_grid,
                        const int nrepeat) const
     {
+        const auto gemm_bias_activ_resize_args = MakeGridwiseGemmBiasActivResize();
 
-        const auto gemm_bias_activ_args = MakeGridwiseGemmBiasActiv();
-
-        const auto kernel = kernel_conv_bias_activ_dlops_v3<decltype(gemm_bias_activ_args),
-                                                            FloatAB,
-                                                            FloatAcc,
-                                                            FloatBias,
-                                                            FloatC>;
+        const auto kernel =
+            kernel_conv_bias_activ_resize_dlops_v3<decltype(gemm_bias_activ_resize_args),
+                                                   FloatAB,
+                                                   FloatAcc,
+                                                   FloatBias,
+                                                   FloatC>;
 
         auto ave_time = launch_and_time_kernel(kernel,
                                                nrepeat,
-                                               dim3(gemm_bias_activ_args.grid_size),
-                                               dim3(gemm_bias_activ_args.block_size),
+                                               dim3(gemm_bias_activ_resize_args.grid_size),
+                                               dim3(gemm_bias_activ_resize_args.block_size),
                                                0,
                                                p_a_grid,
                                                p_b_grid,
                                                p_bias_grid,
-                                               p_c_grid,
+                                               p_d_grid,
                                                0.3);
         return ave_time;
     }
 };
-
 } // namespace ck
-#endif

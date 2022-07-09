@@ -203,7 +203,6 @@ int main(int argc, char* argv[])
     constexpr auto in_right_pad_h = Number<CONV_IN_RIGHT_PAD_H>{};
     constexpr auto in_right_pad_w = Number<CONV_IN_RIGHT_PAD_W>{};
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::CONV_ACTIV;
 #else
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
@@ -368,8 +367,7 @@ int main(int argc, char* argv[])
             in_data_t,
             acc_data_t,
             bias_data_t,
-            out_data_t,
-            activ_type>(tmp[I0], // in_lengths_dev
+            out_data_t>(tmp[I0], // in_lengths_dev
                         tmp[I1], // wei_lengths_dev
                         tmp[I2], // max_lengths_dev
                         tmp[I3], // out_lengths_dev
